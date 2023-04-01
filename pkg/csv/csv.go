@@ -105,30 +105,30 @@ func processLine(headers []string, dataList []string) (map[string]interface{}, e
 }
 
 func WriteJSONFile(csvPath string, writerChannel <-chan map[string]interface{}, done chan<- bool, pretty bool) {
-	writeString := createStringWriter(csvPath, pretty) // Instantiating a JSON writer function
-	jsonFunc, breakLine := getJSONFunc(pretty)         // Instantiating the JSON parse function and the breakline character
-	// Log for informing
+	writeString := createStringWriter(csvPath, pretty)
+	jsonFunc, breakLine := getJSONFunc(pretty)
+
 	fmt.Println("Writing JSON file...")
-	// Writing the first character of our JSON file. We always start with a "[" since we always generate array of record
+
 	writeString("["+breakLine, false)
 	first := true
 	for {
 		// Waiting for pushed records into our writerChannel
 		record, more := <-writerChannel
 		if more {
-			if !first { // If it's not the first record, we break the line
+			if !first {
 				writeString(","+breakLine, false)
 			} else {
-				first = false // If it's the first one, we don't break the line
+				first = false
 			}
 
-			jsonData := jsonFunc(record) // Parsing the record into JSON
-			writeString(jsonData, false) // Writing the JSON string with our writer function
-		} else { // If we get here, it means there aren't more record to parse. So we need to close the file
-			writeString(breakLine+"]", true) // Writing the final character and closing the file
-			fmt.Println("Completed!")        // Logging that we're done
-			done <- true                     // Sending the signal to the main function so it can correctly exit out.
-			break                            // Stopping the for-loop
+			jsonData := jsonFunc(record)
+			writeString(jsonData, false)
+		} else {
+			writeString(breakLine+"]", true)
+			fmt.Println("Completed!")
+			done <- true
+			break
 		}
 	}
 }
@@ -157,22 +157,22 @@ func createStringWriter(csvPath string, pretty bool) func(string, bool) {
 }
 
 func getJSONFunc(pretty bool) (func(map[string]interface{}) string, string) {
-	// Declaring the variables we're going to return at the end
+
 	var jsonFunc func(map[string]interface{}) string
 	var breakLine string
-	if pretty { //Pretty is enabled, so we should return a well-formatted JSON file (multi-line)
+	if pretty {
 		breakLine = "\n"
 		jsonFunc = func(record map[string]interface{}) string {
-			jsonData, _ := json.MarshalIndent(record, "   ", "   ") // By doing this we're ensuring the JSON generated is indented and multi-line
-			return "   " + string(jsonData)                         // Transforming from binary data to string and adding the indent characets to the front
+			jsonData, _ := json.MarshalIndent(record, "   ", "   ")
+			return "   " + string(jsonData)
 		}
-	} else { // Now pretty is disabled so we should return a compact JSON file (one single line)
-		breakLine = "" // It's an empty string because we never break lines when adding a new JSON object
+	} else {
+		breakLine = ""
 		jsonFunc = func(record map[string]interface{}) string {
-			jsonData, _ := json.Marshal(record) // Now we're using the standard Marshal function, which generates JSON without formating
-			return string(jsonData)             // Transforming from binary data to string
+			jsonData, _ := json.Marshal(record)
+			return string(jsonData)
 		}
 	}
 
-	return jsonFunc, breakLine // Returning everythinbg
+	return jsonFunc, breakLine
 }
