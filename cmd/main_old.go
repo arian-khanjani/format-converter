@@ -28,10 +28,10 @@ func main() {
 		exitGracefully(err)
 	}
 
-	writerChannel := make(chan map[string]string)
+	writerChannel := make(chan map[string]interface{})
 	done := make(chan bool)
 
-	go processCSVFile(fileData, writerChannel)
+	go processCSVFile(*fileData, writerChannel)
 	go writeJSONFile(fileData.filepath, writerChannel, done, fileData.pretty)
 
 	<-done
@@ -41,25 +41,31 @@ type inputFile struct {
 	filepath  string
 	separator string
 	pretty    bool
+	target    string
 }
 
-func getFileData() (inputFile, error) {
+func getFileData() (*inputFile, error) {
 	if len(os.Args) < 2 {
-		return inputFile{}, errors.New("A filepath argument is required")
+		return nil, errors.New("A filepath argument is required")
 	}
 
 	separator := flag.String("separator", "comma", "Column separator")
 	pretty := flag.Bool("pretty", false, "Generate pretty JSON")
+	target := flag.String("target", "", "Specify output format")
 
 	flag.Parse()
 
 	fileLocation := flag.Arg(0)
 
 	if !(*separator == "comma" || *separator == "semicolon") {
-		return inputFile{}, errors.New("only comma or semicolon separators are allowed")
+		return nil, errors.New("only comma or semicolon separators are allowed")
 	}
 
-	return inputFile{fileLocation, *separator, *pretty}, nil
+	if !(*target == "JSON" || *target == "CSV" || *target == "XML" || *target == "ESR") {
+		return nil, errors.New(fmt.Sprintf("%s target not supported\n\nList of supported formats:\n%s", *target, "JSON | CSV | XML | ESR"))
+	}
+
+	return &inputFile{fileLocation, *separator, *pretty, *target}, nil
 }
 
 func isValidFile(filename string) (bool, error) {
@@ -74,7 +80,7 @@ func isValidFile(filename string) (bool, error) {
 	return true, nil
 }
 
-func processCSVFile(fileData inputFile, writerChan chan<- map[string]string) {
+func processCSVFile(fileData inputFile, writerChan chan<- map[string]interface{}) {
 	file, err := os.Open(fileData.filepath)
 	check(err)
 	defer file.Close()
@@ -93,7 +99,6 @@ func processCSVFile(fileData inputFile, writerChan chan<- map[string]string) {
 
 	for {
 		line, err = reader.Read()
-
 		if err == io.EOF {
 			close(writerChan)
 			break
@@ -125,12 +130,12 @@ func exitGracefully(err error) {
 	os.Exit(1)
 }
 
-func processLine(headers []string, dataList []string) (map[string]string, error) {
+func processLine(headers []string, dataList []string) (map[string]interface{}, error) {
 	if len(dataList) != len(headers) {
 		return nil, errors.New("line doesn't match headers format. Skipping")
 	}
 
-	recordMap := make(map[string]string)
+	recordMap := make(map[string]interface{})
 	for i, name := range headers {
 		recordMap[strings.TrimSpace(name)] = strings.Trim(dataList[i], "\n\" ")
 	}
@@ -138,9 +143,9 @@ func processLine(headers []string, dataList []string) (map[string]string, error)
 	return recordMap, nil
 }
 
-func writeJSONFile(csvPath string, writerChannel <-chan map[string]string, done chan<- bool, pretty bool) {
-	writeString := createStringWriter(csvPath) // Instantiating a JSON writer function
-	jsonFunc, breakLine := getJSONFunc(pretty) // Instantiating the JSON parse function and the breakline character
+func writeJSONFile(csvPath string, writerChannel <-chan map[string]interface{}, done chan<- bool, pretty bool) {
+	writeString := createStringWriter(csvPath, pretty) // Instantiating a JSON writer function
+	jsonFunc, breakLine := getJSONFunc(pretty)         // Instantiating the JSON parse function and the breakline character
 	// Log for informing
 	fmt.Println("Writing JSON file...")
 	// Writing the first character of our JSON file. We always start with a "[" since we always generate array of record
@@ -162,14 +167,19 @@ func writeJSONFile(csvPath string, writerChannel <-chan map[string]string, done 
 			writeString(breakLine+"]", true) // Writing the final character and closing the file
 			fmt.Println("Completed!")        // Logging that we're done
 			done <- true                     // Sending the signal to the main function so it can correctly exit out.
-			break                            // Stoping the for-loop
+			break                            // Stopping the for-loop
 		}
 	}
 }
 
-func createStringWriter(csvPath string) func(string, bool) {
+func createStringWriter(csvPath string, pretty bool) func(string, bool) {
 	jsonDir := filepath.Dir(csvPath)
-	jsonName := fmt.Sprintf("%s.json", strings.TrimSuffix(filepath.Base(csvPath), ".csv"))
+	var jsonName string
+	if pretty {
+		jsonName = fmt.Sprintf("%s.json", strings.TrimSuffix(filepath.Base(csvPath), ".csv")+"-pretty")
+	} else {
+		jsonName = fmt.Sprintf("%s.json", strings.TrimSuffix(filepath.Base(csvPath), ".csv")+"-compact")
+	}
 	finalLocation := filepath.Join(jsonDir, jsonName)
 
 	f, err := os.Create(finalLocation)
@@ -185,19 +195,19 @@ func createStringWriter(csvPath string) func(string, bool) {
 	}
 }
 
-func getJSONFunc(pretty bool) (func(map[string]string) string, string) {
+func getJSONFunc(pretty bool) (func(map[string]interface{}) string, string) {
 	// Declaring the variables we're going to return at the end
-	var jsonFunc func(map[string]string) string
+	var jsonFunc func(map[string]interface{}) string
 	var breakLine string
 	if pretty { //Pretty is enabled, so we should return a well-formatted JSON file (multi-line)
 		breakLine = "\n"
-		jsonFunc = func(record map[string]string) string {
+		jsonFunc = func(record map[string]interface{}) string {
 			jsonData, _ := json.MarshalIndent(record, "   ", "   ") // By doing this we're ensuring the JSON generated is indented and multi-line
 			return "   " + string(jsonData)                         // Transforming from binary data to string and adding the indent characets to the front
 		}
 	} else { // Now pretty is disabled so we should return a compact JSON file (one single line)
 		breakLine = "" // It's an empty string because we never break lines when adding a new JSON object
-		jsonFunc = func(record map[string]string) string {
+		jsonFunc = func(record map[string]interface{}) string {
 			jsonData, _ := json.Marshal(record) // Now we're using the standard Marshal function, which generates JSON without formating
 			return string(jsonData)             // Transforming from binary data to string
 		}

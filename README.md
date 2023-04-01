@@ -7,13 +7,14 @@ A simple CLI tool practice to convert various data types to each other.
 - CSV to JSON
 
 ## Run
-To run the project:
+To run the project (convert CSV to JSON):
 ```bash
 // without pretty flag
-go run main.go [file-path-to-be-converted]
+go run main.go csv [file-path-to-be-converted]
 
-// with pretty flag
-go run main/go -pretty=true [file-path-to-be-converted]
+// with pretty and separator flags
+go run main.go csv --pretty=true --separator=semicolon [file-path-to-be-converted]
+go run main.go csv -pretty=true -s=semicolon [file-path-to-be-converted]
 ```
 
 ### Example
@@ -27,7 +28,7 @@ LatD, LatM, LatS, NS, LonD, LonM, LonS, EW, City, State
    42,   16,   12, "N",     71,   48,    0, "W", "Worcester", MA
 ```
 
-Output (cities.json):
+Output (cities-pretty.json):
 
 ```
 [
