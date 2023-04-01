@@ -1,9 +1,8 @@
-package main
+package archive
 
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,12 +16,12 @@ func Test_getFileData(t *testing.T) {
 		wantErr bool
 		osArgs  []string
 	}{
-		{"Default parameters", inputFile{"test.csv", "comma", false}, false, []string{"cmd", "test.csv"}},
+		{"Default parameters", inputFile{"test.csv", "comma", false}, false, []string{"cmd", "csv", "test.csv"}},
 		{"No parameters", inputFile{}, true, []string{"cmd"}},
-		{"Semicolon enabled", inputFile{"test.csv", "semicolon", false}, false, []string{"cmd", "--separator=semicolon", "test.csv"}},
-		{"Pretty enabled", inputFile{"test.csv", "comma", true}, false, []string{"cmd", "--pretty", "test.csv"}},
-		{"Pretty and semicolon enabled", inputFile{"test.csv", "semicolon", true}, false, []string{"cmd", "--pretty", "--separator=semicolon", "test.csv"}},
-		{"Separator not identified", inputFile{}, true, []string{"cmd", "--separator=pipe", "test.csv"}},
+		{"Semicolon enabled", inputFile{"test.csv", "semicolon", false}, false, []string{"cmd", "csv", "--separator=semicolon", "test.csv"}},
+		{"Pretty enabled", inputFile{"test.csv", "comma", true}, false, []string{"cmd", "csv", "--pretty", "test.csv"}},
+		{"Pretty and semicolon enabled", inputFile{"test.csv", "semicolon", true}, false, []string{"cmd", "csv", "--pretty", "--separator=semicolon", "test.csv"}},
+		{"Separator not identified", inputFile{}, true, []string{"cmd", "csv", "--separator=pipe", "test.csv"}},
 	}
 
 	for _, tt := range tests {
@@ -83,7 +82,7 @@ func Test_isValidFile(t *testing.T) {
 }
 
 func Test_processCSVFile(t *testing.T) {
-	wantMapSlice := []map[string]string{
+	wantMapSlice := []map[string]interface{}{
 		{"COL1": "1", "COL2": "2", "COL3": "3"},
 		{"COL1": "4", "COL2": "5", "COL3": "6"},
 	}
@@ -120,16 +119,12 @@ func Test_processCSVFile(t *testing.T) {
 				separator: tt.separator,
 			}
 
-			writerChannel := make(chan map[string]string)
+			writerChannel := make(chan map[string]interface{})
 
 			go processCSVFile(testFileData, writerChannel)
 
 			for _, wantMap := range wantMapSlice {
 				record := <-writerChannel
-				fmt.Println()
-				fmt.Println(wantMap)
-				fmt.Println(record)
-				fmt.Println()
 				if !reflect.DeepEqual(record, wantMap) {
 					t.Errorf("processCsvFile() = %v, want %v", record, wantMap)
 				}
@@ -139,7 +134,7 @@ func Test_processCSVFile(t *testing.T) {
 }
 
 func Test_writeJSONFile(t *testing.T) {
-	dataMap := []map[string]string{
+	dataMap := []map[string]interface{}{
 		{"COL1": "1", "COL2": "2", "COL3": "3"},
 		{"COL1": "4", "COL2": "5", "COL3": "6"},
 	}
@@ -157,7 +152,7 @@ func Test_writeJSONFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			writerChannel := make(chan map[string]string)
+			writerChannel := make(chan map[string]interface{})
 			done := make(chan bool)
 
 			go func() {
@@ -177,7 +172,7 @@ func Test_writeJSONFile(t *testing.T) {
 			}
 			defer os.Remove(tt.jsonPath)
 
-			wantOutput, err := os.ReadFile(filepath.Join("../testJsonFiles", tt.jsonPath))
+			wantOutput, err := os.ReadFile(filepath.Join("../test_files", tt.jsonPath))
 			check(err)
 
 			if !bytes.Equal(testOutput, wantOutput) {

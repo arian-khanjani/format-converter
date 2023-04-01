@@ -6,5 +6,4 @@ import (
 
 func main() {
 	csv.Execute()
-	//stringer.Execute()
 }

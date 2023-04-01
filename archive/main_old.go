@@ -41,7 +41,6 @@ type inputFile struct {
 	filepath  string
 	separator string
 	pretty    bool
-	target    string
 }
 
 func getFileData() (*inputFile, error) {
@@ -51,7 +50,6 @@ func getFileData() (*inputFile, error) {
 
 	separator := flag.String("separator", "comma", "Column separator")
 	pretty := flag.Bool("pretty", false, "Generate pretty JSON")
-	target := flag.String("target", "", "Specify output format")
 
 	flag.Parse()
 
@@ -61,11 +59,7 @@ func getFileData() (*inputFile, error) {
 		return nil, errors.New("only comma or semicolon separators are allowed")
 	}
 
-	if !(*target == "JSON" || *target == "CSV" || *target == "XML" || *target == "ESR") {
-		return nil, errors.New(fmt.Sprintf("%s target not supported\n\nList of supported formats:\n%s", *target, "JSON | CSV | XML | ESR"))
-	}
-
-	return &inputFile{fileLocation, *separator, *pretty, *target}, nil
+	return &inputFile{fileLocation, *separator, *pretty}, nil
 }
 
 func isValidFile(filename string) (bool, error) {
